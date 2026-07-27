@@ -2,6 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>docintel</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -21,7 +22,7 @@
         height: 8px;
       }
       ::-webkit-scrollbar-thumb {
-        background: #374151;
+        background: #cbd5e1;
         border-radius: 4px;
       }
       .icon {
@@ -32,15 +33,77 @@
         stroke-width: 2;
         stroke-linecap: round;
         stroke-linejoin: round;
+        flex-shrink: 0;
+      }
+
+      /* Skeleton loading shimmer */
+      @keyframes shimmer {
+        0% {
+          background-position: -300px 0;
+        }
+        100% {
+          background-position: 300px 0;
+        }
+      }
+      .skeleton {
+        background: linear-gradient(90deg, #eef1f5 25%, #e4e8ee 37%, #eef1f5 63%);
+        background-size: 600px 100%;
+        animation: shimmer 1.4s ease-in-out infinite;
+        border-radius: 4px;
+      }
+
+      /* Spinner */
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .spinner {
+        animation: spin 0.7s linear infinite;
+      }
+
+      /* Toasts */
+      @keyframes toast-in {
+        from {
+          opacity: 0;
+          transform: translateY(6px) scale(0.98);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+      .toast {
+        animation: toast-in 0.18s ease-out;
+      }
+
+      /* Modal */
+      @keyframes modal-in {
+        from {
+          opacity: 0;
+          transform: translateY(8px) scale(0.98);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+      .modal-panel {
+        animation: modal-in 0.15s ease-out;
+      }
+
+      .row-hover:hover {
+        background-color: #f8fafc;
       }
     </style>
   </head>
   <body class="bg-[#FAFAFA] text-[#0F172A] text-sm antialiased">
     <div class="flex h-screen">
+      <!-- Sidebar -->
       <aside class="w-60 bg-[#0B0F19] flex flex-col shrink-0">
         <div class="h-16 flex items-center px-5 border-b border-white/10">
           <div
-            class="w-7 h-7 rounded-md bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center mr-2.5"
+            class="w-7 h-7 rounded-md bg-indigo-600 flex items-center justify-center mr-2.5"
           >
             <svg class="icon w-4 h-4">
               <path d="M4 7h16M4 12h10M4 17h7" stroke="white" />
@@ -63,7 +126,7 @@
           </button>
           <button
             data-view="documents"
-            class="nav-btn w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white"
+            class="nav-btn w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors"
           >
             <svg class="icon">
               <path d="M14 3v4a1 1 0 001 1h4" />
@@ -75,7 +138,7 @@
           </button>
           <button
             data-view="review"
-            class="nav-btn w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white"
+            class="nav-btn w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors"
           >
             <svg class="icon">
               <rect x="4" y="3" width="16" height="18" rx="2" />
@@ -84,7 +147,7 @@
             Review Queue
             <span
               id="review-count-badge"
-              class="ml-auto text-[11px] bg-amber-400 text-amber-950 px-1.5 py-0.5 rounded-full font-bold"
+              class="ml-auto text-[11px] bg-amber-400 text-amber-950 px-1.5 py-0.5 rounded-full font-bold leading-none"
               style="display: none"
             ></span>
           </button>
@@ -92,12 +155,9 @@
         <div
           class="px-4 py-3.5 border-t border-white/10 flex items-center gap-2"
         >
-          <span
-            id="conn-dot"
-            class="w-1.5 h-1.5 rounded-full bg-emerald-400"
-          ></span>
-          <span class="text-[11px] text-slate-500 tabular"
-            >api · 127.0.0.1:8000</span
+          <span id="conn-dot" class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+          <span id="conn-label" class="text-[11px] text-slate-500 tabular"
+            >connecting&hellip;</span
           >
         </div>
       </aside>
@@ -132,121 +192,112 @@
         </header>
 
         <main class="flex-1 overflow-y-auto p-8">
+          <!-- ================= DASHBOARD VIEW ================= -->
           <div id="view-dashboard">
-            <div class="grid grid-cols-4 gap-4 mb-6">
-              <div class="bg-white border border-slate-200 rounded-xl p-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+              <div class="bg-white border border-slate-200 rounded-xl p-4 hover:border-slate-300 transition-colors">
                 <div class="flex items-center justify-between mb-3">
-                  <span class="text-xs font-medium text-slate-500"
-                    >Documents Processed</span
-                  >
-                  <svg class="icon text-blue-500">
-                    <path d="M14 3v4a1 1 0 001 1h4" />
-                    <path
-                      d="M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z"
-                    />
-                  </svg>
+                  <span class="text-xs font-medium text-slate-500">Documents Processed</span>
+                  <span class="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
+                    <svg class="icon text-blue-600">
+                      <path d="M14 3v4a1 1 0 001 1h4" />
+                      <path d="M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" />
+                    </svg>
+                  </span>
                 </div>
-                <div
-                  id="stat-total"
-                  class="text-3xl font-bold tabular text-slate-900"
-                >
-                  —
+                <div id="stat-total" class="text-2xl font-bold tabular text-slate-900">
+                  <span class="skeleton inline-block w-12 h-7 align-middle"></span>
                 </div>
               </div>
-              <div class="bg-white border border-slate-200 rounded-xl p-4">
+              <div class="bg-white border border-slate-200 rounded-xl p-4 hover:border-slate-300 transition-colors">
                 <div class="flex items-center justify-between mb-3">
-                  <span class="text-xs font-medium text-slate-500"
-                    >Pending Review</span
-                  >
-                  <svg class="icon text-amber-500">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M12 6v6l4 2" />
-                  </svg>
+                  <span class="text-xs font-medium text-slate-500">Pending Review</span>
+                  <span class="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
+                    <svg class="icon text-amber-600">
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M12 6v6l4 2" />
+                    </svg>
+                  </span>
                 </div>
-                <div
-                  id="stat-pending"
-                  class="text-3xl font-bold tabular text-slate-900"
-                >
-                  —
+                <div id="stat-pending" class="text-2xl font-bold tabular text-slate-900">
+                  <span class="skeleton inline-block w-12 h-7 align-middle"></span>
                 </div>
               </div>
-              <div class="bg-white border border-slate-200 rounded-xl p-4">
+              <div class="bg-white border border-slate-200 rounded-xl p-4 hover:border-slate-300 transition-colors">
                 <div class="flex items-center justify-between mb-3">
-                  <span class="text-xs font-medium text-slate-500"
-                    >LLM Fallback Rate</span
-                  >
-                  <svg class="icon text-violet-500">
-                    <path
-                      d="M12 2l2.4 7.2H22l-6 4.6 2.3 7.2-6.3-4.6-6.3 4.6 2.3-7.2-6-4.6h7.6z"
-                    />
-                  </svg>
+                  <span class="text-xs font-medium text-slate-500">LLM Fallback Rate</span>
+                  <span class="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
+                    <svg class="icon text-violet-600">
+                      <path d="M12 2l2.4 7.2H22l-6 4.6 2.3 7.2-6.3-4.6-6.3 4.6 2.3-7.2-6-4.6h7.6z" />
+                    </svg>
+                  </span>
                 </div>
-                <div
-                  id="stat-llm-rate"
-                  class="text-3xl font-bold tabular text-slate-900"
-                >
-                  —
+                <div id="stat-llm-rate" class="text-2xl font-bold tabular text-slate-900">
+                  <span class="skeleton inline-block w-12 h-7 align-middle"></span>
                 </div>
               </div>
-              <div class="bg-white border border-slate-200 rounded-xl p-4">
+              <div class="bg-white border border-slate-200 rounded-xl p-4 hover:border-slate-300 transition-colors">
                 <div class="flex items-center justify-between mb-3">
-                  <span class="text-xs font-medium text-slate-500"
-                    >Auto-Approved</span
-                  >
-                  <svg class="icon text-emerald-500">
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
+                  <span class="text-xs font-medium text-slate-500">Auto-Approved</span>
+                  <span class="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
+                    <svg class="icon text-emerald-600">
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                  </span>
                 </div>
-                <div
-                  id="stat-auto"
-                  class="text-3xl font-bold tabular text-slate-900"
-                >
-                  —
+                <div id="stat-auto" class="text-2xl font-bold tabular text-slate-900">
+                  <span class="skeleton inline-block w-12 h-7 align-middle"></span>
                 </div>
               </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+              <!-- Upload card -->
               <div class="bg-white border border-slate-200 rounded-xl">
-                <div
-                  class="px-5 py-4 border-b border-slate-100 flex items-center gap-2"
-                >
+                <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
                   <svg class="icon text-slate-500">
                     <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
                     <path d="M17 8l-5-5-5 5" />
                     <path d="M12 3v12" />
                   </svg>
-                  <span class="font-semibold text-slate-900 text-sm"
-                    >Upload an invoice image</span
-                  >
+                  <span class="font-semibold text-slate-900 text-sm">Upload an invoice image</span>
                 </div>
                 <div class="p-5">
                   <label
                     for="file-input"
                     id="drop-zone"
-                    class="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50/30 rounded-lg py-8 cursor-pointer transition-colors"
+                    class="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/30 rounded-lg py-8 cursor-pointer transition-colors"
                   >
                     <svg class="icon w-6 h-6 text-slate-400">
                       <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
                       <path d="M17 8l-5-5-5 5" />
                       <path d="M12 3v12" />
                     </svg>
-                    <span class="text-xs font-medium text-slate-500"
-                      >Click to choose an image (PNG, JPG)</span
-                    >
+                    <span class="text-xs font-medium text-slate-500">
+                      Drop an image here, or click to browse
+                    </span>
+                    <span class="text-[11px] text-slate-400">PNG or JPG</span>
                   </label>
-                  <input
-                    type="file"
-                    id="file-input"
-                    accept="image/*"
-                    class="hidden"
-                  />
-                  <div class="flex items-center gap-3 mt-3">
-                    <span
-                      id="upload-status"
-                      class="text-xs text-slate-400"
-                    ></span>
+                  <input type="file" id="file-input" accept="image/*" class="hidden" />
+
+                  <div id="upload-file-chip" class="hidden mt-3 flex items-center gap-2 text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                    <svg class="icon text-slate-400">
+                      <path d="M14 3v4a1 1 0 001 1h4" />
+                      <path d="M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" />
+                    </svg>
+                    <span id="upload-file-name" class="text-slate-700 font-medium truncate flex-1"></span>
                   </div>
+
+                  <div id="upload-progress" class="hidden mt-3 flex items-center gap-2 text-xs text-slate-500">
+                    <svg id="upload-progress-spinner" class="icon spinner text-indigo-500">
+                      <path d="M21 12a9 9 0 11-6.219-8.56" />
+                    </svg>
+                    <svg id="upload-progress-check" class="icon text-emerald-500 hidden">
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                    <span id="upload-progress-label">Uploading&hellip;</span>
+                  </div>
+
                   <pre
                     id="ocr-preview"
                     class="hidden mt-3 bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600 whitespace-pre-wrap max-h-32 overflow-y-auto"
@@ -254,18 +305,17 @@
                 </div>
               </div>
 
+              <!-- Paste text card -->
               <div class="bg-white border border-slate-200 rounded-xl">
                 <div class="px-5 py-4 border-b border-slate-100">
-                  <span class="font-semibold text-slate-900 text-sm"
-                    >Or paste raw text</span
-                  >
+                  <span class="font-semibold text-slate-900 text-sm">Or paste raw text</span>
                 </div>
                 <div class="p-5">
                   <textarea
                     id="extract-input"
                     rows="5"
                     placeholder="Paste raw invoice text here..."
-                    class="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                    class="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 resize-none"
                   ></textarea>
                   <div class="flex items-center gap-3 mt-3">
                     <button
@@ -274,85 +324,114 @@
                     >
                       Submit for extraction
                     </button>
-                    <span
-                      id="extract-status"
-                      class="text-xs text-slate-400"
-                    ></span>
+                    <div id="extract-progress" class="hidden flex items-center gap-2 text-xs text-slate-500">
+                      <svg class="icon spinner text-indigo-500">
+                        <path d="M21 12a9 9 0 11-6.219-8.56" />
+                      </svg>
+                      <span id="extract-progress-label">Queued&hellip;</span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div
-              class="bg-white border border-slate-200 rounded-xl overflow-hidden"
-            >
-              <div
-                class="px-5 py-4 border-b border-slate-100 font-semibold text-slate-900 text-sm"
-              >
+            <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <div class="px-5 py-4 border-b border-slate-100 font-semibold text-slate-900 text-sm">
                 Recent documents
               </div>
-              <table class="w-full text-sm">
-                <thead>
-                  <tr
-                    class="text-left text-[11px] uppercase tracking-wide text-slate-400 bg-slate-50/60"
-                  >
-                    <th class="px-5 py-2.5 font-semibold">ID</th>
-                    <th class="px-5 py-2.5 font-semibold">Vendor</th>
-                    <th class="px-5 py-2.5 font-semibold">Amount</th>
-                    <th class="px-5 py-2.5 font-semibold">Date</th>
-                    <th class="px-5 py-2.5 font-semibold">Invoice #</th>
-                  </tr>
-                </thead>
-                <tbody id="docs-table-body"></tbody>
-              </table>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="text-left text-[11px] uppercase tracking-wide text-slate-400 bg-slate-50/60">
+                      <th class="px-5 py-2.5 font-semibold">ID</th>
+                      <th class="px-5 py-2.5 font-semibold">Vendor</th>
+                      <th class="px-5 py-2.5 font-semibold">Amount</th>
+                      <th class="px-5 py-2.5 font-semibold">Date</th>
+                      <th class="px-5 py-2.5 font-semibold">Invoice #</th>
+                    </tr>
+                  </thead>
+                  <tbody id="docs-table-body"></tbody>
+                </table>
+              </div>
+              <div id="docs-empty" class="hidden px-5 py-14 text-center">
+                <svg class="icon w-8 h-8 text-slate-300 mx-auto mb-2">
+                  <path d="M14 3v4a1 1 0 001 1h4" />
+                  <path d="M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" />
+                </svg>
+                <p class="text-slate-500 text-sm font-medium">No documents yet</p>
+                <p class="text-slate-400 text-xs mt-1">Upload an invoice or paste text above to get started.</p>
+              </div>
             </div>
           </div>
 
+          <!-- ================= DOCUMENTS VIEW ================= -->
           <div id="view-documents" class="hidden">
-            <div
-              class="bg-white border border-slate-200 rounded-xl overflow-hidden"
-            >
-              <table class="w-full text-sm">
-                <thead>
-                  <tr
-                    class="text-left text-[11px] uppercase tracking-wide text-slate-400 bg-slate-50/60"
-                  >
-                    <th class="px-5 py-2.5 font-semibold">ID</th>
-                    <th class="px-5 py-2.5 font-semibold">Vendor</th>
-                    <th class="px-5 py-2.5 font-semibold">Amount</th>
-                    <th class="px-5 py-2.5 font-semibold">Date</th>
-                    <th class="px-5 py-2.5 font-semibold">Invoice #</th>
-                  </tr>
-                </thead>
-                <tbody id="all-docs-table-body"></tbody>
-              </table>
+            <div class="flex items-center justify-between mb-4">
+              <div class="relative w-72">
+                <svg class="icon absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="M21 21l-4.35-4.35" />
+                </svg>
+                <input
+                  id="docs-search"
+                  type="text"
+                  placeholder="Search vendor, invoice #..."
+                  oninput="renderAllDocs()"
+                  class="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400"
+                />
+              </div>
+              <span id="docs-count" class="text-xs text-slate-400"></span>
+            </div>
+            <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="text-left text-[11px] uppercase tracking-wide text-slate-400 bg-slate-50/60">
+                      <th class="px-5 py-2.5 font-semibold">ID</th>
+                      <th class="px-5 py-2.5 font-semibold">Vendor</th>
+                      <th class="px-5 py-2.5 font-semibold">Amount</th>
+                      <th class="px-5 py-2.5 font-semibold">Date</th>
+                      <th class="px-5 py-2.5 font-semibold">Invoice #</th>
+                    </tr>
+                  </thead>
+                  <tbody id="all-docs-table-body"></tbody>
+                </table>
+              </div>
+              <div id="all-docs-empty" class="hidden px-5 py-14 text-center">
+                <svg class="icon w-8 h-8 text-slate-300 mx-auto mb-2">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="M21 21l-4.35-4.35" />
+                </svg>
+                <p class="text-slate-500 text-sm font-medium">No matching documents</p>
+                <p class="text-slate-400 text-xs mt-1">Try a different search term.</p>
+              </div>
             </div>
           </div>
 
+          <!-- ================= REVIEW QUEUE VIEW ================= -->
           <div id="view-review" class="hidden">
-            <div
-              class="bg-white border border-slate-200 rounded-xl overflow-hidden"
-            >
-              <table class="w-full text-sm">
-                <thead>
-                  <tr
-                    class="text-left text-[11px] uppercase tracking-wide text-slate-400 bg-slate-50/60"
-                  >
-                    <th class="px-5 py-2.5 font-semibold">ID</th>
-                    <th class="px-5 py-2.5 font-semibold">Vendor</th>
-                    <th class="px-5 py-2.5 font-semibold">Amount</th>
-                    <th class="px-5 py-2.5 font-semibold">Date</th>
-                    <th class="px-5 py-2.5 font-semibold">Invoice #</th>
-                    <th class="px-5 py-2.5 font-semibold">Action</th>
-                  </tr>
-                </thead>
-                <tbody id="review-table-body"></tbody>
-              </table>
-              <div
-                id="review-empty"
-                class="hidden px-5 py-14 text-center text-slate-400 text-sm"
-              >
-                Nothing needs review right now.
+            <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="text-left text-[11px] uppercase tracking-wide text-slate-400 bg-slate-50/60">
+                      <th class="px-5 py-2.5 font-semibold">ID</th>
+                      <th class="px-5 py-2.5 font-semibold">Vendor</th>
+                      <th class="px-5 py-2.5 font-semibold">Amount</th>
+                      <th class="px-5 py-2.5 font-semibold">Date</th>
+                      <th class="px-5 py-2.5 font-semibold">Invoice #</th>
+                      <th class="px-5 py-2.5 font-semibold">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="review-table-body"></tbody>
+                </table>
+              </div>
+              <div id="review-empty" class="hidden px-5 py-14 text-center">
+                <svg class="icon w-8 h-8 text-emerald-300 mx-auto mb-2">
+                  <path d="M20 6L9 17l-5-5" />
+                </svg>
+                <p class="text-slate-500 text-sm font-medium">All caught up</p>
+                <p class="text-slate-400 text-xs mt-1">Nothing needs review right now.</p>
               </div>
             </div>
           </div>
@@ -360,49 +439,168 @@
       </div>
     </div>
 
+    <!-- Toast container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 flex flex-col gap-2 z-50 w-80"></div>
+
+    <!-- Correction modal -->
+    <div id="modal-backdrop" class="hidden fixed inset-0 bg-slate-900/40 z-40 flex items-center justify-center p-4">
+      <div class="modal-panel bg-white rounded-xl shadow-xl w-full max-w-md border border-slate-200">
+        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+          <span class="font-semibold text-slate-900 text-sm">Correct extraction &mdash; #<span id="modal-doc-id"></span></span>
+          <button onclick="closeModal()" class="text-slate-400 hover:text-slate-700 transition-colors">
+            <svg class="icon"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <div class="p-5 space-y-4">
+          <div>
+            <label class="text-xs font-medium text-slate-500 mb-1 block">Vendor</label>
+            <input id="modal-vendor_name" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-slate-500 mb-1 block">Total amount</label>
+            <input id="modal-total_amount" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-slate-500 mb-1 block">Invoice date</label>
+            <input id="modal-invoice_date" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-slate-500 mb-1 block">Invoice number</label>
+            <input id="modal-invoice_number" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" />
+          </div>
+        </div>
+        <div class="px-5 py-4 border-t border-slate-100 flex items-center justify-end gap-2">
+          <button onclick="closeModal()" class="text-xs font-semibold text-slate-600 hover:text-slate-900 px-3 py-2 rounded-lg transition-colors">Cancel</button>
+          <button id="modal-save-btn" onclick="saveCorrection()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition-colors">Save correction</button>
+        </div>
+      </div>
+    </div>
+
     <script>
       const API_BASE = "http://127.0.0.1:8000";
 
+      // ---------------------------------------------------------------
+      // Toasts
+      // ---------------------------------------------------------------
+      function showToast(message, type = "info") {
+        const palette = {
+          success: ["bg-emerald-50", "border-emerald-200", "text-emerald-800", "text-emerald-500"],
+          error: ["bg-red-50", "border-red-200", "text-red-800", "text-red-500"],
+          info: ["bg-white", "border-slate-200", "text-slate-700", "text-slate-400"],
+        };
+        const [bg, border, text, iconColor] = palette[type] || palette.info;
+        const icons = {
+          success: '<path d="M20 6L9 17l-5-5" />',
+          error: '<circle cx="12" cy="12" r="10" /><path d="M12 8v5M12 16h.01" />',
+          info: '<circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />',
+        };
+        const el = document.createElement("div");
+        el.className = `toast flex items-start gap-2.5 ${bg} border ${border} ${text} rounded-lg px-3.5 py-3 shadow-sm text-xs font-medium`;
+        el.innerHTML = `<svg class="icon ${iconColor} mt-0.5">${icons[type] || icons.info}</svg><span class="flex-1">${message}</span>`;
+        document.getElementById("toast-container").appendChild(el);
+        setTimeout(() => {
+          el.style.transition = "opacity 0.2s ease";
+          el.style.opacity = "0";
+          setTimeout(() => el.remove(), 200);
+        }, 4200);
+      }
+
+      // ---------------------------------------------------------------
+      // Fetch wrapper -- every call routes through here so network/API
+      // failures surface as a toast instead of a silently broken table.
+      // ---------------------------------------------------------------
+      async function api(path, opts) {
+        let res;
+        try {
+          res = await fetch(`${API_BASE}${path}`, opts);
+        } catch (err) {
+          throw new Error(`Can't reach the API (${err.message})`);
+        }
+        if (!res.ok) {
+          const body = await res.text().catch(() => "");
+          throw new Error(`API error ${res.status}: ${body.slice(0, 150)}`);
+        }
+        return res.json();
+      }
+
+      // ---------------------------------------------------------------
+      // Connection status
+      // ---------------------------------------------------------------
+      async function checkConnection() {
+        const dot = document.getElementById("conn-dot");
+        const label = document.getElementById("conn-label");
+        try {
+          await fetch(`${API_BASE}/documents`);
+          dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-400";
+          label.textContent = "api · 127.0.0.1:8000";
+        } catch {
+          dot.className = "w-1.5 h-1.5 rounded-full bg-red-400";
+          label.textContent = "api unreachable";
+        }
+      }
+
+      // ---------------------------------------------------------------
+      // Badges / cells
+      // ---------------------------------------------------------------
       function badge(source) {
         const map = {
           llm: ["bg-amber-50 text-amber-700", "bg-amber-500"],
-          human: ["bg-blue-50 text-blue-700", "bg-blue-500"],
+          human: ["bg-indigo-50 text-indigo-700", "bg-indigo-500"],
           regex: ["bg-emerald-50 text-emerald-700", "bg-emerald-500"],
           ner: ["bg-emerald-50 text-emerald-700", "bg-emerald-500"],
           finetuned: ["bg-emerald-50 text-emerald-700", "bg-emerald-500"],
         };
         if (!source)
           return `<span class="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded bg-red-50 text-red-600"><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>missing</span>`;
-        const [cls, dot] = map[source] || [
-          "bg-slate-50 text-slate-600",
-          "bg-slate-400",
-        ];
+        const [cls, dot] = map[source] || ["bg-slate-50 text-slate-600", "bg-slate-400"];
         return `<span class="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded ${cls}"><span class="w-1.5 h-1.5 rounded-full ${dot}"></span>${source}</span>`;
+      }
+
+      function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str ?? "";
+        return div.innerHTML;
       }
 
       function cell(value, source) {
         return `<td class="px-5 py-3 border-b border-slate-100">
-    <div class="tabular text-slate-800">${value ?? '<span class="text-slate-300">—</span>'}</div>
+    <div class="tabular text-slate-800">${value != null && value !== "" ? escapeHtml(value) : '<span class="text-slate-300">&mdash;</span>'}</div>
     <div class="mt-1">${badge(source)}</div>
   </td>`;
       }
 
+      function skeletonRows(cols, count = 5) {
+        let rows = "";
+        for (let i = 0; i < count; i++) {
+          rows += "<tr>";
+          for (let c = 0; c < cols; c++) {
+            rows += `<td class="px-5 py-3.5 border-b border-slate-100"><span class="skeleton block h-4 w-${c === 0 ? "10" : "24"}"></span></td>`;
+          }
+          rows += "</tr>";
+        }
+        return rows;
+      }
+
+      // ---------------------------------------------------------------
+      // Dashboard
+      // ---------------------------------------------------------------
       let allDocsCache = [];
+      let pendingCache = [];
 
       async function loadDashboard() {
-        const res = await fetch(`${API_BASE}/documents`);
-        allDocsCache = await res.json();
+        const body = document.getElementById("docs-table-body");
+        if (!allDocsCache.length) body.innerHTML = skeletonRows(5, 5);
 
-        const pendingRes = await fetch(`${API_BASE}/review/pending`);
-        const pending = await pendingRes.json();
+        try {
+          allDocsCache = await api("/documents");
+          pendingCache = await api("/review/pending");
+        } catch (err) {
+          showToast(err.message, "error");
+          return;
+        }
 
         const total = allDocsCache.length;
-        const fields = [
-          "vendor_source",
-          "total_amount_source",
-          "invoice_date_source",
-          "invoice_number_source",
-        ];
+        const fields = ["vendor_source", "total_amount_source", "invoice_date_source", "invoice_number_source"];
         let llmCount = 0,
           filledCount = 0;
         allDocsCache.forEach((d) => {
@@ -411,24 +609,23 @@
             if (d[f] === "llm") llmCount++;
           });
         });
-        const llmRate = filledCount
-          ? ((llmCount / filledCount) * 100).toFixed(0) + "%"
-          : "0%";
-        const autoApproved = total - pending.length;
+        const llmRate = filledCount ? ((llmCount / filledCount) * 100).toFixed(0) + "%" : "0%";
+        const autoApproved = total - pendingCache.length;
 
         document.getElementById("stat-total").textContent = total;
-        document.getElementById("stat-pending").textContent = pending.length;
+        document.getElementById("stat-pending").textContent = pendingCache.length;
         document.getElementById("stat-llm-rate").textContent = llmRate;
         document.getElementById("stat-auto").textContent = autoApproved;
 
         const badgeEl = document.getElementById("review-count-badge");
-        badgeEl.textContent = pending.length || "";
-        badgeEl.style.display = pending.length ? "inline-block" : "none";
+        badgeEl.textContent = pendingCache.length || "";
+        badgeEl.style.display = pendingCache.length ? "inline-block" : "none";
 
-        const body = document.getElementById("docs-table-body");
         body.innerHTML = "";
+        document.getElementById("docs-empty").classList.toggle("hidden", total !== 0);
         allDocsCache.slice(0, 8).forEach((row) => {
           const tr = document.createElement("tr");
+          tr.className = "row-hover transition-colors";
           tr.innerHTML = `
       <td class="px-5 py-3 border-b border-slate-100 tabular text-slate-400">#${row.id}</td>
       ${cell(row.vendor_name, row.vendor_source)}
@@ -442,9 +639,19 @@
 
       function renderAllDocs() {
         const body = document.getElementById("all-docs-table-body");
+        const query = (document.getElementById("docs-search")?.value || "").toLowerCase().trim();
+        const rows = allDocsCache.filter((row) => {
+          if (!query) return true;
+          return [row.vendor_name, row.invoice_number].some((v) => (v || "").toLowerCase().includes(query));
+        });
+
+        document.getElementById("docs-count").textContent = `${rows.length} document${rows.length === 1 ? "" : "s"}`;
+        document.getElementById("all-docs-empty").classList.toggle("hidden", rows.length !== 0 || allDocsCache.length === 0);
+
         body.innerHTML = "";
-        allDocsCache.forEach((row) => {
+        rows.forEach((row) => {
           const tr = document.createElement("tr");
+          tr.className = "row-hover transition-colors";
           tr.innerHTML = `
       <td class="px-5 py-3 border-b border-slate-100 tabular text-slate-400">#${row.id}</td>
       ${cell(row.vendor_name, row.vendor_source)}
@@ -456,74 +663,193 @@
         });
       }
 
-      async function submitExtract() {
-        const text = document.getElementById("extract-input").value.trim();
-        if (!text) return;
-        const statusEl = document.getElementById("extract-status");
-        statusEl.textContent = "Submitting...";
-        const res = await fetch(`${API_BASE}/extract`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ raw_text: text }),
-        });
-        const data = await res.json();
-        statusEl.textContent = `Queued (job ${data.job_id.slice(0, 8)}...) — refreshing shortly`;
-        document.getElementById("extract-input").value = "";
-        setTimeout(loadAll, 2000);
-      }
-
-      // --- File upload -> OCR -> extraction ---
-      document
-        .getElementById("file-input")
-        .addEventListener("change", async (e) => {
-          const file = e.target.files[0];
-          if (!file) return;
-
-          const statusEl = document.getElementById("upload-status");
-          const preview = document.getElementById("ocr-preview");
-          statusEl.textContent = `Reading ${file.name} with OCR...`;
-          preview.classList.add("hidden");
-
-          const formData = new FormData();
-          formData.append("file", file);
-
+      // ---------------------------------------------------------------
+      // Job polling -- replaces the old "wait N seconds and hope" pattern
+      // with real status polling against GET /jobs/{job_id}, so the UI
+      // reflects queued -> processing -> done, and gives up gracefully
+      // instead of spinning forever if a job stalls.
+      // ---------------------------------------------------------------
+      function pollJob(jobId, { onStatus, onDone, onError }) {
+        let attempts = 0;
+        const MAX_ATTEMPTS = 30; // ~30s at 1s interval
+        const interval = setInterval(async () => {
+          attempts++;
           try {
-            const res = await fetch(`${API_BASE}/extract/image`, {
-              method: "POST",
-              body: formData,
-            });
-            if (!res.ok) {
-              const errText = await res.text();
-              statusEl.textContent = `Error: ${res.status} — ${errText.slice(0, 150)}`;
+            const job = await api(`/jobs/${jobId}`);
+            onStatus?.(job.status);
+            if (job.status === "done") {
+              clearInterval(interval);
+              onDone?.(job);
               return;
             }
-            const data = await res.json();
-            statusEl.textContent = `OCR complete, extraction queued (job ${data.job_id.slice(0, 8)}...) — refreshing shortly`;
-            preview.textContent = data.ocr_text || "(no text detected)";
-            preview.classList.remove("hidden");
-            setTimeout(loadAll, 2500);
           } catch (err) {
-            statusEl.textContent = `Request failed: ${err.message}`;
+            clearInterval(interval);
+            onError?.(err.message);
+            return;
           }
+          if (attempts >= MAX_ATTEMPTS) {
+            clearInterval(interval);
+            onError?.("Still processing after 30s -- check back in Documents shortly.");
+          }
+        }, 1000);
+      }
 
-          e.target.value = "";
+      // ---------------------------------------------------------------
+      // Paste-text extraction
+      // ---------------------------------------------------------------
+      async function submitExtract() {
+        const textEl = document.getElementById("extract-input");
+        const text = textEl.value.trim();
+        if (!text) {
+          showToast("Paste some invoice text first.", "error");
+          return;
+        }
+
+        const progress = document.getElementById("extract-progress");
+        const label = document.getElementById("extract-progress-label");
+        progress.classList.remove("hidden");
+        label.textContent = "Queued…";
+
+        let data;
+        try {
+          data = await api("/extract", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ raw_text: text }),
+          });
+        } catch (err) {
+          progress.classList.add("hidden");
+          showToast(err.message, "error");
+          return;
+        }
+
+        textEl.value = "";
+        pollJob(data.job_id, {
+          onStatus: (status) => {
+            label.textContent = status === "processing" ? "Extracting fields…" : "Queued…";
+          },
+          onDone: () => {
+            progress.classList.add("hidden");
+            showToast("Extraction complete.", "success");
+            loadAll();
+          },
+          onError: (msg) => {
+            progress.classList.add("hidden");
+            showToast(msg, "error");
+          },
+        });
+      }
+
+      // ---------------------------------------------------------------
+      // File upload -> OCR -> extraction
+      // ---------------------------------------------------------------
+      const fileInput = document.getElementById("file-input");
+      const dropZone = document.getElementById("drop-zone");
+
+      function handleFile(file) {
+        if (!file) return;
+        const chip = document.getElementById("upload-file-chip");
+        document.getElementById("upload-file-name").textContent = `${file.name} (${(file.size / 1024).toFixed(0)} KB)`;
+        chip.classList.remove("hidden");
+        uploadFile(file);
+      }
+
+      fileInput.addEventListener("change", (e) => handleFile(e.target.files[0]));
+
+      ["dragover", "dragenter"].forEach((evt) =>
+        dropZone.addEventListener(evt, (e) => {
+          e.preventDefault();
+          dropZone.classList.add("border-indigo-400", "bg-indigo-50/30");
+        })
+      );
+      ["dragleave", "drop"].forEach((evt) =>
+        dropZone.addEventListener(evt, (e) => {
+          e.preventDefault();
+          dropZone.classList.remove("border-indigo-400", "bg-indigo-50/30");
+        })
+      );
+      dropZone.addEventListener("drop", (e) => {
+        const file = e.dataTransfer.files[0];
+        if (file) handleFile(file);
+      });
+
+      async function uploadFile(file) {
+        const progress = document.getElementById("upload-progress");
+        const spinner = document.getElementById("upload-progress-spinner");
+        const check = document.getElementById("upload-progress-check");
+        const label = document.getElementById("upload-progress-label");
+        const preview = document.getElementById("ocr-preview");
+
+        spinner.classList.remove("hidden");
+        check.classList.add("hidden");
+        progress.classList.remove("hidden");
+        label.textContent = "Running OCR…";
+        preview.classList.add("hidden");
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        let data;
+        try {
+          data = await api("/extract/image", { method: "POST", body: formData });
+        } catch (err) {
+          progress.classList.add("hidden");
+          showToast(err.message, "error");
+          return;
+        }
+
+        preview.textContent = data.ocr_text || "(no text detected)";
+        preview.classList.remove("hidden");
+
+        pollJob(data.job_id, {
+          onStatus: () => {
+            label.textContent = "Extracting fields…";
+          },
+          onDone: () => {
+            spinner.classList.add("hidden");
+            check.classList.remove("hidden");
+            label.textContent = "Done";
+            showToast("Invoice processed successfully.", "success");
+            loadAll();
+            setTimeout(() => progress.classList.add("hidden"), 2000);
+          },
+          onError: (msg) => {
+            progress.classList.add("hidden");
+            showToast(msg, "error");
+          },
         });
 
+        fileInput.value = "";
+      }
+
+      // ---------------------------------------------------------------
+      // Review queue
+      // ---------------------------------------------------------------
       async function loadReviewQueue() {
-        const res = await fetch(`${API_BASE}/review/pending`);
-        const rows = await res.json();
         const body = document.getElementById("review-table-body");
         const empty = document.getElementById("review-empty");
+        body.innerHTML = skeletonRows(6, 4);
+        empty.classList.add("hidden");
+
+        let rows;
+        try {
+          rows = await api("/review/pending");
+        } catch (err) {
+          showToast(err.message, "error");
+          body.innerHTML = "";
+          return;
+        }
+        pendingCache = rows;
         body.innerHTML = "";
 
         if (rows.length === 0) {
           empty.classList.remove("hidden");
           return;
         }
-        empty.classList.add("hidden");
 
         rows.forEach((row) => {
           const tr = document.createElement("tr");
+          tr.className = "row-hover transition-colors";
           tr.innerHTML = `
       <td class="px-5 py-3 border-b border-slate-100 tabular text-slate-400">#${row.id}</td>
       ${cell(row.vendor_name, row.vendor_source)}
@@ -531,30 +857,78 @@
       ${cell(row.invoice_date, row.invoice_date_source)}
       ${cell(row.invoice_number, row.invoice_number_source)}
       <td class="px-5 py-3 border-b border-slate-100">
-        <button onclick="openCorrection(${row.id})" class="text-xs font-semibold text-blue-600 hover:text-blue-800">Correct →</button>
+        <button onclick="openCorrection(${row.id})" class="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors">
+          Correct
+          <svg class="icon w-3.5 h-3.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+        </button>
       </td>
     `;
           body.appendChild(tr);
         });
       }
 
-      async function openCorrection(id) {
-        const field = prompt(
-          "Which field are you correcting? (vendor_name / total_amount / invoice_date / invoice_number)",
-        );
-        if (!field) return;
-        const value = prompt(`New value for ${field}:`);
-        if (value === null) return;
+      // ---------------------------------------------------------------
+      // Correction modal (replaces window.prompt())
+      // ---------------------------------------------------------------
+      let modalDocId = null;
 
-        await fetch(`${API_BASE}/review/submit`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: id, [field]: value }),
-        });
-        loadReviewQueue();
-        loadDashboard();
+      function openCorrection(id) {
+        const row = pendingCache.find((r) => r.id === id) || allDocsCache.find((r) => r.id === id);
+        if (!row) return;
+        modalDocId = id;
+        document.getElementById("modal-doc-id").textContent = id;
+        document.getElementById("modal-vendor_name").value = row.vendor_name || "";
+        document.getElementById("modal-total_amount").value = row.total_amount || "";
+        document.getElementById("modal-invoice_date").value = row.invoice_date || "";
+        document.getElementById("modal-invoice_number").value = row.invoice_number || "";
+        document.getElementById("modal-backdrop").classList.remove("hidden");
       }
 
+      function closeModal() {
+        document.getElementById("modal-backdrop").classList.add("hidden");
+        modalDocId = null;
+      }
+
+      document.getElementById("modal-backdrop").addEventListener("click", (e) => {
+        if (e.target.id === "modal-backdrop") closeModal();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closeModal();
+      });
+
+      async function saveCorrection() {
+        if (modalDocId == null) return;
+        const payload = { id: modalDocId };
+        ["vendor_name", "total_amount", "invoice_date", "invoice_number"].forEach((field) => {
+          const value = document.getElementById(`modal-${field}`).value.trim();
+          if (value) payload[field] = value;
+        });
+
+        const saveBtn = document.getElementById("modal-save-btn");
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Saving…";
+
+        try {
+          await api("/review/submit", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          showToast("Correction saved.", "success");
+          closeModal();
+          loadReviewQueue();
+          loadDashboard();
+        } catch (err) {
+          showToast(err.message, "error");
+        } finally {
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Save correction";
+        }
+      }
+
+      // ---------------------------------------------------------------
+      // Navigation
+      // ---------------------------------------------------------------
       document.querySelectorAll(".nav-btn").forEach((btn) => {
         btn.addEventListener("click", () => {
           document.querySelectorAll(".nav-btn").forEach((b) => {
@@ -565,15 +939,9 @@
           btn.classList.remove("text-slate-400");
 
           const view = btn.dataset.view;
-          document
-            .getElementById("view-dashboard")
-            .classList.toggle("hidden", view !== "dashboard");
-          document
-            .getElementById("view-documents")
-            .classList.toggle("hidden", view !== "documents");
-          document
-            .getElementById("view-review")
-            .classList.toggle("hidden", view !== "review");
+          document.getElementById("view-dashboard").classList.toggle("hidden", view !== "dashboard");
+          document.getElementById("view-documents").classList.toggle("hidden", view !== "documents");
+          document.getElementById("view-review").classList.toggle("hidden", view !== "review");
 
           const titles = {
             dashboard: ["Dashboard", "Real-time extraction pipeline overview"],
@@ -589,17 +957,10 @@
       });
 
       function loadAll() {
+        checkConnection();
         loadDashboard();
-        if (
-          !document.getElementById("view-review").classList.contains("hidden")
-        )
-          loadReviewQueue();
-        if (
-          !document
-            .getElementById("view-documents")
-            .classList.contains("hidden")
-        )
-          renderAllDocs();
+        if (!document.getElementById("view-review").classList.contains("hidden")) loadReviewQueue();
+        if (!document.getElementById("view-documents").classList.contains("hidden")) renderAllDocs();
       }
 
       loadAll();
