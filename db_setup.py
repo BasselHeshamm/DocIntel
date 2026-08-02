@@ -20,7 +20,9 @@ CREATE TABLE IF NOT EXISTS extractions (
     invoice_date TEXT,
     invoice_date_source TEXT,
     invoice_number TEXT,
-    invoice_number_source TEXT
+    invoice_number_source TEXT,
+    is_valid_document INTEGER DEFAULT 1,
+    rejection_reason TEXT
 )
 """)
 

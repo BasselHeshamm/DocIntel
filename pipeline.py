@@ -41,6 +41,29 @@ MONEY_PATTERN = re.compile(r"\$[\d,]+(?:\.\d{2})?")
 DATE_PATTERN = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 INVOICE_NUM_PATTERN = re.compile(r"\bINV-\d{4}-\d{4}\b")
 
+# Broader than the strict extraction patterns above -- these are only used
+# to sniff "does this look like it has money/date fields at all", not to
+# pull out a specific value, so they intentionally accept more formats
+# (foreign currency codes, DD/MM/YYYY, "Nov 3, 2024", etc).
+CURRENCY_LIKE_PATTERN = re.compile(
+    r"[$€£¥]\s?\d|\d\s?[$€£¥]|\b(?:USD|EUR|GBP|CAD|AUD|JPY)\b\s?\d|\d\s?(?:USD|EUR|GBP|CAD|AUD|JPY)\b",
+    re.I,
+)
+DATE_LIKE_PATTERN = re.compile(
+    r"\b\d{4}-\d{2}-\d{2}\b"
+    r"|\b\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b"
+    r"|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b",
+    re.I,
+)
+
+# Below this, extracted text is treated as too sparse to be a real
+# document (blank page, corrupt scan, photo of a wall, etc) without even
+# bothering to ask the LLM.
+MIN_DOCUMENT_CHARS = 20
+# Below this average OCR word confidence (0-100, pytesseract's scale),
+# the heuristic leans toward "unreadable" rather than "clean but blank".
+OCR_CONFIDENCE_FLOOR = 40
+
 # Debug logging: set DOCINTEL_DEBUG=1 to see, for every extraction, the OCR
 # text, regex hits, per-token NER labels/confidence, assembled vendor
 # candidates, and why non-winning candidates were rejected. Uses the normal
@@ -81,6 +104,75 @@ class FallbackFields(BaseModel):
     total_amount: Optional[str] = None
     invoice_date: Optional[str] = None
     invoice_number: Optional[str] = None
+
+
+class DocumentValidityCheck(BaseModel):
+    is_invoice: bool
+    reason: Optional[str] = None
+
+
+def _llm_validity_check(raw_text, debug=False):
+    """Ask the LLM a direct yes/no question. Only reached when the cheap
+    heuristic in assess_document_validity is inconclusive, so this should
+    be a small fraction of documents in practice."""
+    prompt = (
+        "Does the following OCR-extracted text look like it came from an "
+        "invoice, receipt, bill, or payment statement (a document that "
+        "requests or confirms payment for goods/services)? Judge only from "
+        "the text given -- OCR noise and missing fields are expected and "
+        "shouldn't count against it, but text that is clearly unrelated "
+        "(a letter, an article, a random photo, a blank/garbled scan) "
+        "should be marked as not an invoice.\n\n"
+        f"Text:\n{raw_text}"
+    )
+    response = gemini_client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt,
+        config={
+            "response_mime_type": "application/json",
+            "response_schema": DocumentValidityCheck,
+        },
+    )
+    result = response.parsed
+    if debug:
+        logger.debug("llm validity check: is_invoice=%s reason=%r", result.is_invoice, result.reason)
+    if result.is_invoice:
+        return True, None
+    return False, result.reason or "The LLM determined this document is not an invoice, receipt, or bill."
+
+
+def assess_document_validity(raw_text, ocr_confidence=None, debug=False):
+    """Decide whether a document is even worth running extraction on.
+
+    Cheap heuristic first (OCR confidence + currency/date-like patterns),
+    since most uploads are either obviously fine (has both a currency and
+    a date) or obviously garbage (near-empty text). Only the ambiguous
+    middle asks the LLM, so normal traffic doesn't pay for an API call.
+
+    Returns (is_valid, rejection_reason). rejection_reason is None when valid.
+    """
+    text = raw_text.strip()
+    if len(text) < MIN_DOCUMENT_CHARS:
+        return False, "Extracted text is too short to be a real document (possible blank or corrupt scan)."
+
+    has_currency = bool(CURRENCY_LIKE_PATTERN.search(text))
+    has_date = bool(DATE_LIKE_PATTERN.search(text))
+    low_ocr_confidence = ocr_confidence is not None and ocr_confidence < OCR_CONFIDENCE_FLOOR
+
+    if debug:
+        logger.debug(
+            "validity heuristic: has_currency=%s has_date=%s ocr_confidence=%s (floor=%s)",
+            has_currency, has_date, ocr_confidence, OCR_CONFIDENCE_FLOOR,
+        )
+
+    if has_currency and has_date:
+        return True, None  # strong positive signal, skip the LLM call
+
+    if low_ocr_confidence and not has_currency and not has_date:
+        return False, "OCR confidence is low and no currency or date pattern was found in the text."
+
+    # Weak/mixed signal -- let the LLM make the call.
+    return _llm_validity_check(text, debug=debug)
 
 
 def clean_ocr_text(raw_text):
@@ -185,12 +277,16 @@ def _trim_non_vendor_edges(span):
 
 
 def _score_candidate(candidate):
-    # Confidence dominates the score. A small length bonus favors legitimate
-    # multi-word names over stray single tokens, and a small position bonus
-    # favors earlier lines (vendor names are almost always near the top of
-    # an invoice) -- both are tie-breakers, not the primary signal.
-    length_bonus = min(len(candidate["words"]), 3) * 0.01
-    position_bonus = -candidate["line"] * 0.005
+    # Confidence dominates the score. Position is the stronger tie-breaker:
+    # vendor names are consistently near the very top of an invoice, while a
+    # well-calibrated model can tag OTHER things (a street address, a table
+    # header) with confidence just as high as the real vendor -- position is
+    # what actually separates them in that case. Length is a much weaker,
+    # near-tiebreak-only nudge: rewarding "more words" too heavily lets a
+    # multi-word address line outscore a short-but-correct vendor name
+    # purely by being longer, which is backwards.
+    length_bonus = min(len(candidate["words"]), 3) * 0.002
+    position_bonus = -candidate["line"] * 0.01
     return candidate["confidence"] + length_bonus + position_bonus
 
 
@@ -343,22 +439,40 @@ def append_correction_for_retraining(vendor_name):
         f.write(json.dumps(entry) + "\n")
 
 
-def save_to_db(raw_text, result, source):
+def ensure_schema(conn):
+    """Add columns introduced after the original CREATE TABLE if they're
+    missing, so a database created before the invalid-document feature
+    (like an existing docintel.db) picks them up without a manual migration
+    step. Safe to call on every connection -- PRAGMA table_info is cheap."""
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(extractions)")
+    existing_columns = {row[1] for row in cursor.fetchall()}
+    if "is_valid_document" not in existing_columns:
+        cursor.execute("ALTER TABLE extractions ADD COLUMN is_valid_document INTEGER DEFAULT 1")
+    if "rejection_reason" not in existing_columns:
+        cursor.execute("ALTER TABLE extractions ADD COLUMN rejection_reason TEXT")
+    conn.commit()
+
+
+def save_to_db(raw_text, result, source, is_valid_document=True, rejection_reason=None):
     conn = sqlite3.connect("docintel.db")
+    ensure_schema(conn)
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO extractions (
             raw_text, vendor_name, vendor_source,
             total_amount, total_amount_source,
             invoice_date, invoice_date_source,
-            invoice_number, invoice_number_source
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            invoice_number, invoice_number_source,
+            is_valid_document, rejection_reason
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         raw_text,
         result.get("vendor_name"), source.get("vendor_name"),
         result.get("total_amount"), source.get("total_amount"),
         result.get("invoice_date"), source.get("invoice_date"),
         result.get("invoice_number"), source.get("invoice_number"),
+        1 if is_valid_document else 0, rejection_reason,
     ))
     conn.commit()
     conn.close()

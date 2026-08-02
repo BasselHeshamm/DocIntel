@@ -194,7 +194,7 @@
         <main class="flex-1 overflow-y-auto p-8">
           <!-- ================= DASHBOARD VIEW ================= -->
           <div id="view-dashboard">
-            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
               <div class="bg-white border border-slate-200 rounded-xl p-4 hover:border-slate-300 transition-colors">
                 <div class="flex items-center justify-between mb-3">
                   <span class="text-xs font-medium text-slate-500">Documents Processed</span>
@@ -249,6 +249,20 @@
                   <span class="skeleton inline-block w-12 h-7 align-middle"></span>
                 </div>
               </div>
+              <div class="bg-white border border-slate-200 rounded-xl p-4 hover:border-slate-300 transition-colors">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-xs font-medium text-slate-500">Rejected</span>
+                  <span class="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center">
+                    <svg class="icon text-red-600">
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M15 9l-6 6M9 9l6 6" />
+                    </svg>
+                  </span>
+                </div>
+                <div id="stat-rejected" class="text-2xl font-bold tabular text-slate-900">
+                  <span class="skeleton inline-block w-12 h-7 align-middle"></span>
+                </div>
+              </div>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
@@ -294,6 +308,9 @@
                     </svg>
                     <svg id="upload-progress-check" class="icon text-emerald-500 hidden">
                       <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                    <svg id="upload-progress-reject" class="icon text-red-500 hidden">
+                      <circle cx="12" cy="12" r="10" /><path d="M15 9l-6 6M9 9l6 6" />
                     </svg>
                     <span id="upload-progress-label">Uploading&hellip;</span>
                   </div>
@@ -348,6 +365,7 @@
                       <th class="px-5 py-2.5 font-semibold">Amount</th>
                       <th class="px-5 py-2.5 font-semibold">Date</th>
                       <th class="px-5 py-2.5 font-semibold">Invoice #</th>
+                      <th class="px-5 py-2.5 w-8"></th>
                     </tr>
                   </thead>
                   <tbody id="docs-table-body"></tbody>
@@ -392,6 +410,7 @@
                       <th class="px-5 py-2.5 font-semibold">Amount</th>
                       <th class="px-5 py-2.5 font-semibold">Date</th>
                       <th class="px-5 py-2.5 font-semibold">Invoice #</th>
+                      <th class="px-5 py-2.5 w-8"></th>
                     </tr>
                   </thead>
                   <tbody id="all-docs-table-body"></tbody>
@@ -420,7 +439,7 @@
                       <th class="px-5 py-2.5 font-semibold">Amount</th>
                       <th class="px-5 py-2.5 font-semibold">Date</th>
                       <th class="px-5 py-2.5 font-semibold">Invoice #</th>
-                      <th class="px-5 py-2.5 font-semibold">Action</th>
+                      <th class="px-5 py-2.5 w-8"></th>
                     </tr>
                   </thead>
                   <tbody id="review-table-body"></tbody>
@@ -446,10 +465,16 @@
     <div id="modal-backdrop" class="hidden fixed inset-0 bg-slate-900/40 z-40 flex items-center justify-center p-4">
       <div class="modal-panel bg-white rounded-xl shadow-xl w-full max-w-md border border-slate-200">
         <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-          <span class="font-semibold text-slate-900 text-sm">Correct extraction &mdash; #<span id="modal-doc-id"></span></span>
+          <span class="font-semibold text-slate-900 text-sm">Edit document &mdash; #<span id="modal-doc-id"></span></span>
           <button onclick="closeModal()" class="text-slate-400 hover:text-slate-700 transition-colors">
             <svg class="icon"><path d="M18 6L6 18M6 6l12 12" /></svg>
           </button>
+        </div>
+        <div id="modal-rejection-notice" class="hidden px-5 pt-4 -mb-1">
+          <div class="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2.5 text-xs">
+            <svg class="icon mt-0.5 shrink-0"><circle cx="12" cy="12" r="10" /><path d="M12 8v5M12 16h.01" /></svg>
+            <span>This document was auto-rejected: <span id="modal-rejection-reason" class="font-medium"></span> Saving fields below will mark it as a valid document.</span>
+          </div>
         </div>
         <div class="p-5 space-y-4">
           <div>
@@ -471,7 +496,7 @@
         </div>
         <div class="px-5 py-4 border-t border-slate-100 flex items-center justify-end gap-2">
           <button onclick="closeModal()" class="text-xs font-semibold text-slate-600 hover:text-slate-900 px-3 py-2 rounded-lg transition-colors">Cancel</button>
-          <button id="modal-save-btn" onclick="saveCorrection()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition-colors">Save correction</button>
+          <button id="modal-save-btn" onclick="saveCorrection()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition-colors">Save</button>
         </div>
       </div>
     </div>
@@ -569,6 +594,41 @@
   </td>`;
       }
 
+      function chevronCell() {
+        return `<td class="px-5 py-3 border-b border-slate-100 text-slate-300">
+    <svg class="icon"><path d="M9 6l6 6-6 6" /></svg>
+  </td>`;
+      }
+
+      // A rejected document gets one wide banner cell instead of four
+      // "missing" field columns -- a row full of red "missing" badges reads
+      // as a normal extraction that went badly, not as "this isn't an
+      // invoice." The reason is right there instead of hidden until clicked.
+      function rejectedRowHtml(row) {
+        return `
+      <td class="px-5 py-3 border-b border-slate-100 tabular text-slate-400">#${row.id}</td>
+      <td class="px-5 py-3 border-b border-slate-100" colspan="4">
+        <div class="inline-flex items-center gap-1.5 text-[11px] font-medium px-1.5 py-0.5 rounded bg-red-50 text-red-600 mr-2">
+          <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>Rejected
+        </div>
+        <span class="text-xs text-slate-500">${escapeHtml(row.rejection_reason || "Doesn't look like an invoice.")}</span>
+      </td>
+      ${chevronCell()}
+    `;
+      }
+
+      function documentRowHtml(row) {
+        if (row.is_valid_document === 0) return rejectedRowHtml(row);
+        return `
+      <td class="px-5 py-3 border-b border-slate-100 tabular text-slate-400">#${row.id}</td>
+      ${cell(row.vendor_name, row.vendor_source)}
+      ${cell(row.total_amount, row.total_amount_source)}
+      ${cell(row.invoice_date, row.invoice_date_source)}
+      ${cell(row.invoice_number, row.invoice_number_source)}
+      ${chevronCell()}
+    `;
+      }
+
       function skeletonRows(cols, count = 5) {
         let rows = "";
         for (let i = 0; i < count; i++) {
@@ -589,7 +649,7 @@
 
       async function loadDashboard() {
         const body = document.getElementById("docs-table-body");
-        if (!allDocsCache.length) body.innerHTML = skeletonRows(5, 5);
+        if (!allDocsCache.length) body.innerHTML = skeletonRows(6, 5);
 
         try {
           allDocsCache = await api("/documents");
@@ -600,6 +660,7 @@
         }
 
         const total = allDocsCache.length;
+        const rejectedCount = allDocsCache.filter((d) => d.is_valid_document === 0).length;
         const fields = ["vendor_source", "total_amount_source", "invoice_date_source", "invoice_number_source"];
         let llmCount = 0,
           filledCount = 0;
@@ -610,12 +671,13 @@
           });
         });
         const llmRate = filledCount ? ((llmCount / filledCount) * 100).toFixed(0) + "%" : "0%";
-        const autoApproved = total - pendingCache.length;
+        const autoApproved = total - pendingCache.length - rejectedCount;
 
         document.getElementById("stat-total").textContent = total;
         document.getElementById("stat-pending").textContent = pendingCache.length;
         document.getElementById("stat-llm-rate").textContent = llmRate;
         document.getElementById("stat-auto").textContent = autoApproved;
+        document.getElementById("stat-rejected").textContent = rejectedCount;
 
         const badgeEl = document.getElementById("review-count-badge");
         badgeEl.textContent = pendingCache.length || "";
@@ -625,14 +687,9 @@
         document.getElementById("docs-empty").classList.toggle("hidden", total !== 0);
         allDocsCache.slice(0, 8).forEach((row) => {
           const tr = document.createElement("tr");
-          tr.className = "row-hover transition-colors";
-          tr.innerHTML = `
-      <td class="px-5 py-3 border-b border-slate-100 tabular text-slate-400">#${row.id}</td>
-      ${cell(row.vendor_name, row.vendor_source)}
-      ${cell(row.total_amount, row.total_amount_source)}
-      ${cell(row.invoice_date, row.invoice_date_source)}
-      ${cell(row.invoice_number, row.invoice_number_source)}
-    `;
+          tr.className = "row-hover transition-colors cursor-pointer";
+          tr.onclick = () => openCorrection(row.id);
+          tr.innerHTML = documentRowHtml(row);
           body.appendChild(tr);
         });
       }
@@ -651,14 +708,9 @@
         body.innerHTML = "";
         rows.forEach((row) => {
           const tr = document.createElement("tr");
-          tr.className = "row-hover transition-colors";
-          tr.innerHTML = `
-      <td class="px-5 py-3 border-b border-slate-100 tabular text-slate-400">#${row.id}</td>
-      ${cell(row.vendor_name, row.vendor_source)}
-      ${cell(row.total_amount, row.total_amount_source)}
-      ${cell(row.invoice_date, row.invoice_date_source)}
-      ${cell(row.invoice_number, row.invoice_number_source)}
-    `;
+          tr.className = "row-hover transition-colors cursor-pointer";
+          tr.onclick = () => openCorrection(row.id);
+          tr.innerHTML = documentRowHtml(row);
           body.appendChild(tr);
         });
       }
@@ -728,9 +780,13 @@
           onStatus: (status) => {
             label.textContent = status === "processing" ? "Extracting fields…" : "Queued…";
           },
-          onDone: () => {
+          onDone: (job) => {
             progress.classList.add("hidden");
-            showToast("Extraction complete.", "success");
+            if (job.result?.is_valid_document === false) {
+              showToast(`Rejected: ${job.result.rejection_reason || "doesn't look like an invoice."}`, "error");
+            } else {
+              showToast("Extraction complete.", "success");
+            }
             loadAll();
           },
           onError: (msg) => {
@@ -777,9 +833,11 @@
         const progress = document.getElementById("upload-progress");
         const spinner = document.getElementById("upload-progress-spinner");
         const check = document.getElementById("upload-progress-check");
+        const reject = document.getElementById("upload-progress-reject");
         const label = document.getElementById("upload-progress-label");
         const preview = document.getElementById("ocr-preview");
 
+        reject.classList.add("hidden");
         spinner.classList.remove("hidden");
         check.classList.add("hidden");
         progress.classList.remove("hidden");
@@ -805,13 +863,19 @@
           onStatus: () => {
             label.textContent = "Extracting fields…";
           },
-          onDone: () => {
+          onDone: (job) => {
             spinner.classList.add("hidden");
-            check.classList.remove("hidden");
-            label.textContent = "Done";
-            showToast("Invoice processed successfully.", "success");
+            if (job.result?.is_valid_document === false) {
+              document.getElementById("upload-progress-reject").classList.remove("hidden");
+              label.textContent = "Rejected";
+              showToast(`Rejected: ${job.result.rejection_reason || "doesn't look like an invoice."}`, "error");
+            } else {
+              check.classList.remove("hidden");
+              label.textContent = "Done";
+              showToast("Invoice processed successfully.", "success");
+            }
             loadAll();
-            setTimeout(() => progress.classList.add("hidden"), 2000);
+            setTimeout(() => progress.classList.add("hidden"), 3000);
           },
           onError: (msg) => {
             progress.classList.add("hidden");
@@ -849,20 +913,9 @@
 
         rows.forEach((row) => {
           const tr = document.createElement("tr");
-          tr.className = "row-hover transition-colors";
-          tr.innerHTML = `
-      <td class="px-5 py-3 border-b border-slate-100 tabular text-slate-400">#${row.id}</td>
-      ${cell(row.vendor_name, row.vendor_source)}
-      ${cell(row.total_amount, row.total_amount_source)}
-      ${cell(row.invoice_date, row.invoice_date_source)}
-      ${cell(row.invoice_number, row.invoice_number_source)}
-      <td class="px-5 py-3 border-b border-slate-100">
-        <button onclick="openCorrection(${row.id})" class="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors">
-          Correct
-          <svg class="icon w-3.5 h-3.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
-        </button>
-      </td>
-    `;
+          tr.className = "row-hover transition-colors cursor-pointer";
+          tr.onclick = () => openCorrection(row.id);
+          tr.innerHTML = documentRowHtml(row);
           body.appendChild(tr);
         });
       }
@@ -871,16 +924,35 @@
       // Correction modal (replaces window.prompt())
       // ---------------------------------------------------------------
       let modalDocId = null;
+      // Snapshot of what each field looked like when the modal opened, so
+      // Save can tell "user actually edited this" apart from "this was
+      // just resubmitted unchanged from the pre-filled value" -- without
+      // it, every field the form pre-fills gets marked source="human" on
+      // save, even ones the user never touched.
+      let modalOriginalValues = {};
 
       function openCorrection(id) {
         const row = pendingCache.find((r) => r.id === id) || allDocsCache.find((r) => r.id === id);
         if (!row) return;
         modalDocId = id;
         document.getElementById("modal-doc-id").textContent = id;
-        document.getElementById("modal-vendor_name").value = row.vendor_name || "";
-        document.getElementById("modal-total_amount").value = row.total_amount || "";
-        document.getElementById("modal-invoice_date").value = row.invoice_date || "";
-        document.getElementById("modal-invoice_number").value = row.invoice_number || "";
+
+        modalOriginalValues = {
+          vendor_name: row.vendor_name || "",
+          total_amount: row.total_amount || "",
+          invoice_date: row.invoice_date || "",
+          invoice_number: row.invoice_number || "",
+        };
+        Object.entries(modalOriginalValues).forEach(([field, value]) => {
+          document.getElementById(`modal-${field}`).value = value;
+        });
+
+        const notice = document.getElementById("modal-rejection-notice");
+        notice.classList.toggle("hidden", row.is_valid_document !== 0);
+        if (row.is_valid_document === 0) {
+          document.getElementById("modal-rejection-reason").textContent = row.rejection_reason || "Doesn't look like an invoice.";
+        }
+
         document.getElementById("modal-backdrop").classList.remove("hidden");
       }
 
@@ -901,8 +973,18 @@
         const payload = { id: modalDocId };
         ["vendor_name", "total_amount", "invoice_date", "invoice_number"].forEach((field) => {
           const value = document.getElementById(`modal-${field}`).value.trim();
-          if (value) payload[field] = value;
+          // Only send fields that actually changed from what the form was
+          // pre-filled with -- an untouched field must keep its existing
+          // source label (regex/finetuned/llm) in the database, not get
+          // silently relabeled "human" just because it round-tripped
+          // through the form unchanged.
+          if (value && value !== modalOriginalValues[field]) payload[field] = value;
         });
+
+        if (Object.keys(payload).length === 1) {
+          showToast("No changes to save.", "info");
+          return;
+        }
 
         const saveBtn = document.getElementById("modal-save-btn");
         saveBtn.disabled = true;
@@ -914,7 +996,7 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
-          showToast("Correction saved.", "success");
+          showToast("Saved.", "success");
           closeModal();
           loadReviewQueue();
           loadDashboard();
@@ -922,7 +1004,7 @@
           showToast(err.message, "error");
         } finally {
           saveBtn.disabled = false;
-          saveBtn.textContent = "Save correction";
+          saveBtn.textContent = "Save";
         }
       }
 
